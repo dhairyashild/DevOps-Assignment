@@ -32,3 +32,13 @@ output "ecs_cluster_name" {
   description = "ECS cluster name"
   value       = module.ecs.ecs_cluster_name
 }
+
+output "cloudwatch_dashboard_url" {
+  description = "CloudWatch dashboard URL"
+  value       = module.monitoring.dashboard_url
+}
+
+output "sns_topic_arn" {
+  description = "SNS topic ARN for alerts"
+  value       = module.monitoring.sns_topic_arn
+}

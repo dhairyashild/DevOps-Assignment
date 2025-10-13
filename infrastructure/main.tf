@@ -111,3 +111,36 @@ resource "aws_cloudwatch_log_group" "frontend" {
     Project     = var.project_name
   }
 }
+
+# Monitoring module
+module "monitoring" {
+  source = "./modules/monitoring"
+
+  project_name         = var.project_name
+  environment          = var.environment
+  aws_region           = var.aws_region
+  ecs_cluster_name     = module.ecs.ecs_cluster_name
+  backend_service_name = "${var.project_name}-backend-service"
+  frontend_service_name = "${var.project_name}-frontend-service"
+  alert_email          = var.alert_email
+}
+
+# Add ALB reference for monitoring module
+resource "aws_lb" "main" {
+  # This is a reference to the ALB created in the ECS module
+  # The actual ALB is defined in the ECS module
+}
+
+# Monitoring module
+module "monitoring" {
+  source = "./modules/monitoring"
+
+  project_name         = var.project_name
+  environment          = var.environment
+  aws_region           = var.aws_region
+  ecs_cluster_name     = module.ecs.ecs_cluster_name
+  backend_service_name = "${var.project_name}-backend-service"
+  frontend_service_name = "${var.project_name}-frontend-service"
+  alb_arn_suffix       = split("/", module.ecs.alb_dns_name)[1] # Extract ALB name from DNS
+  alert_email          = var.alert_email
+}

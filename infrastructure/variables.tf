@@ -53,3 +53,9 @@ variable "frontend_image_tag" {
 }
 
 # Add any other variables as needed
+
+variable "alert_email" {
+  description = "Email address for CloudWatch alerts"
+  type        = string
+  default     = "your-email@example.com"  # Replace with your email
+}
