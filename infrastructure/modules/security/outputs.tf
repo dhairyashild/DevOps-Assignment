@@ -3,7 +3,7 @@ output "alb_security_group_id" {
   value       = aws_security_group.alb.id
 }
 
-output "ecs_security_group_id" {
-  description = "ECS security group ID"
-  value       = aws_security_group.ecs.id
+output "eks_security_group_id" {
+  description = "EKS security group ID"
+  value       = aws_security_group.eks.id
 }

@@ -18,3 +18,8 @@ variable "cluster_version" {
   type        = string
   default     = "1.28"
 }
+
+variable "eks_security_group_id" {
+  description = "EKS security group ID"
+  type        = string
+}

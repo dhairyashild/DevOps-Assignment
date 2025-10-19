@@ -100,18 +100,57 @@ resource "aws_ecr_repository" "frontend" {
 module "eks" {
   source = "./modules/eks"
 
-  project_name     = var.project_name
-  environment      = var.environment
-  private_subnets  = module.network.private_subnets
-  cluster_version  = var.cluster_version
+  project_name          = var.project_name
+  environment           = var.environment
+  private_subnets       = module.network.private_subnets
+  cluster_version       = var.cluster_version
+  eks_security_group_id = module.security.eks_security_group_id
+}
+
+# ALB Controller IAM Role
+resource "aws_iam_role" "alb_controller" {
+  name = "${var.project_name}-alb-controller"
+
+  assume_role_policy = jsonencode({
+    Statement = [{
+      Action = "sts:AssumeRoleWithWebIdentity"
+      Effect = "Allow"
+      Principal = {
+        Federated = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:oidc-provider/${replace(module.eks.cluster_endpoint, "https://", "")}"
+      }
+      Condition = {
+        StringEquals = {
+          "${replace(module.eks.cluster_endpoint, "https://", "")}:sub": "system:serviceaccount:kube-system:aws-load-balancer-controller"
+        }
+      }
+    }]
+    Version = "2012-10-17"
+  })
+
+  tags = {
+    Environment = var.environment
+    Project     = var.project_name
+  }
+}
+
+resource "aws_iam_role_policy_attachment" "alb_controller" {
+  policy_arn = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:policy/AWSLoadBalancerControllerIAMPolicy"
+  role       = aws_iam_role.alb_controller.name
 }
 
 # Kubernetes manifests
+resource "kubectl_manifest" "alb_controller" {
+  yaml_body = templatefile("${path.module}/modules/eks/k8s/ingress/alb-controller.yaml", {
+    CLUSTER_NAME = module.eks.cluster_name
+  })
+  depends_on = [module.eks]
+}
+
 resource "kubectl_manifest" "backend_deployment" {
   yaml_body = templatefile("${path.module}/modules/eks/k8s/backend/deployment.yaml", {
     BACKEND_IMAGE = "${aws_ecr_repository.backend.repository_url}:latest"
   })
-  depends_on = [module.eks]
+  depends_on = [module.eks, kubectl_manifest.alb_controller]
 }
 
 resource "kubectl_manifest" "backend_service" {
@@ -123,7 +162,7 @@ resource "kubectl_manifest" "frontend_deployment" {
   yaml_body = templatefile("${path.module}/modules/eks/k8s/frontend/deployment.yaml", {
     FRONTEND_IMAGE = "${aws_ecr_repository.frontend.repository_url}:latest"
   })
-  depends_on = [module.eks]
+  depends_on = [module.eks, kubectl_manifest.alb_controller]
 }
 
 resource "kubectl_manifest" "frontend_service" {
@@ -133,10 +172,10 @@ resource "kubectl_manifest" "frontend_service" {
 
 resource "kubectl_manifest" "ingress" {
   yaml_body = file("${path.module}/modules/eks/k8s/ingress/ingress.yaml")
-  depends_on = [module.eks]
+  depends_on = [kubectl_manifest.alb_controller, kubectl_manifest.backend_service, kubectl_manifest.frontend_service]
 }
 
-# CloudWatch Log Groups (keep for EKS)
+# CloudWatch Log Groups
 resource "aws_cloudwatch_log_group" "backend" {
   name              = "/eks/${var.project_name}-backend"
   retention_in_days = 30

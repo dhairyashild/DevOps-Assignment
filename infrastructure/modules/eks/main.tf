@@ -136,3 +136,18 @@ resource "aws_eks_addon" "kube_proxy" {
   cluster_name = aws_eks_cluster.main.name
   addon_name   = "kube-proxy"
 }
+
+# Add security group to EKS cluster
+resource "aws_eks_cluster" "main" {
+  # ... existing code ...
+
+  vpc_config {
+    subnet_ids              = var.private_subnets
+    endpoint_private_access = true
+    endpoint_public_access  = true
+    public_access_cidrs     = ["0.0.0.0/0"]
+    security_group_ids      = [var.eks_security_group_id]  # Add this line
+  }
+
+  # ... rest of existing code ...
+}

@@ -33,26 +33,34 @@ resource "aws_security_group" "alb" {
   }
 }
 
-# ECS Security Group
-resource "aws_security_group" "ecs" {
-  name        = "${var.project_name}-ecs-sg"
-  description = "Security group for ECS tasks"
+# EKS Security Group
+resource "aws_security_group" "eks" {
+  name        = "${var.project_name}-eks-sg"
+  description = "Security group for EKS nodes"
   vpc_id      = var.vpc_id
 
   ingress {
     description     = "From ALB"
-    from_port       = 8000
-    to_port         = 8000
+    from_port       = 30000
+    to_port         = 32767
     protocol        = "tcp"
     security_groups = [aws_security_group.alb.id]
   }
 
   ingress {
-    description     = "From ALB to frontend"
-    from_port       = 3000
-    to_port         = 3000
-    protocol        = "tcp"
-    security_groups = [aws_security_group.alb.id]
+    description = "Node to node communication"
+    from_port   = 0
+    to_port     = 65535
+    protocol    = "tcp"
+    self        = true
+  }
+
+  ingress {
+    description = "Allow pods to communicate with each other"
+    from_port   = 0
+    to_port     = 65535
+    protocol    = "tcp"
+    cidr_blocks = var.private_subnets
   }
 
   egress {
@@ -63,7 +71,7 @@ resource "aws_security_group" "ecs" {
   }
 
   tags = {
-    Name        = "${var.project_name}-ecs-sg"
+    Name        = "${var.project_name}-eks-sg"
     Environment = var.environment
   }
 }
