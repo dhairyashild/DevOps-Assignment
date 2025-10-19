@@ -5,10 +5,17 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 5.0"
     }
+    kubernetes = {
+      source  = "hashicorp/kubernetes"
+      version = "~> 2.23"
+    }
+    kubectl = {
+      source  = "gavinbunney/kubectl"
+      version = "~> 1.14"
+    }
   }
 
   backend "s3" {
-    # This will be filled in after creating the S3 bucket
     bucket = "devops-assignment-tfstate"
     key    = "terraform.tfstate"
     region = "us-east-1"
@@ -17,6 +24,23 @@ terraform {
 
 provider "aws" {
   region = var.aws_region
+}
+
+provider "kubernetes" {
+  host                   = module.eks.cluster_endpoint
+  cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
+  token                  = data.aws_eks_cluster_auth.main.token
+}
+
+provider "kubectl" {
+  host                   = module.eks.cluster_endpoint
+  cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
+  token                  = data.aws_eks_cluster_auth.main.token
+  load_config_file       = false
+}
+
+data "aws_eks_cluster_auth" "main" {
+  name = module.eks.cluster_name
 }
 
 # Get current AWS account ID and region
@@ -72,28 +96,49 @@ resource "aws_ecr_repository" "frontend" {
   }
 }
 
-# ECS Cluster and Services module
-module "ecs" {
-  source = "./modules/ecs"
+# EKS module
+module "eks" {
+  source = "./modules/eks"
 
-  project_name          = var.project_name
-  environment           = var.environment
-  vpc_id                = module.network.vpc_id
-  public_subnets        = module.network.public_subnets
-  private_subnets       = module.network.private_subnets
-  alb_security_group_id = module.security.alb_security_group_id
-  ecs_security_group_id = module.security.ecs_security_group_id
-
-  backend_ecr_repository = aws_ecr_repository.backend.repository_url
-  frontend_ecr_repository = aws_ecr_repository.frontend.repository_url
-
-  backend_image_tag  = var.backend_image_tag
-  frontend_image_tag = var.frontend_image_tag
+  project_name     = var.project_name
+  environment      = var.environment
+  private_subnets  = module.network.private_subnets
+  cluster_version  = var.cluster_version
 }
 
-# CloudWatch Log Groups
+# Kubernetes manifests
+resource "kubectl_manifest" "backend_deployment" {
+  yaml_body = templatefile("${path.module}/modules/eks/k8s/backend/deployment.yaml", {
+    BACKEND_IMAGE = "${aws_ecr_repository.backend.repository_url}:latest"
+  })
+  depends_on = [module.eks]
+}
+
+resource "kubectl_manifest" "backend_service" {
+  yaml_body = file("${path.module}/modules/eks/k8s/backend/service.yaml")
+  depends_on = [module.eks]
+}
+
+resource "kubectl_manifest" "frontend_deployment" {
+  yaml_body = templatefile("${path.module}/modules/eks/k8s/frontend/deployment.yaml", {
+    FRONTEND_IMAGE = "${aws_ecr_repository.frontend.repository_url}:latest"
+  })
+  depends_on = [module.eks]
+}
+
+resource "kubectl_manifest" "frontend_service" {
+  yaml_body = file("${path.module}/modules/eks/k8s/frontend/service.yaml")
+  depends_on = [module.eks]
+}
+
+resource "kubectl_manifest" "ingress" {
+  yaml_body = file("${path.module}/modules/eks/k8s/ingress/ingress.yaml")
+  depends_on = [module.eks]
+}
+
+# CloudWatch Log Groups (keep for EKS)
 resource "aws_cloudwatch_log_group" "backend" {
-  name              = "/ecs/${var.project_name}-backend"
+  name              = "/eks/${var.project_name}-backend"
   retention_in_days = 30
 
   tags = {
@@ -103,7 +148,7 @@ resource "aws_cloudwatch_log_group" "backend" {
 }
 
 resource "aws_cloudwatch_log_group" "frontend" {
-  name              = "/ecs/${var.project_name}-frontend"
+  name              = "/eks/${var.project_name}-frontend"
   retention_in_days = 30
 
   tags = {
@@ -116,31 +161,9 @@ resource "aws_cloudwatch_log_group" "frontend" {
 module "monitoring" {
   source = "./modules/monitoring"
 
-  project_name         = var.project_name
-  environment          = var.environment
-  aws_region           = var.aws_region
-  ecs_cluster_name     = module.ecs.ecs_cluster_name
-  backend_service_name = "${var.project_name}-backend-service"
-  frontend_service_name = "${var.project_name}-frontend-service"
-  alert_email          = var.alert_email
-}
-
-# Add ALB reference for monitoring module
-resource "aws_lb" "main" {
-  # This is a reference to the ALB created in the ECS module
-  # The actual ALB is defined in the ECS module
-}
-
-# Monitoring module
-module "monitoring" {
-  source = "./modules/monitoring"
-
-  project_name         = var.project_name
-  environment          = var.environment
-  aws_region           = var.aws_region
-  ecs_cluster_name     = module.ecs.ecs_cluster_name
-  backend_service_name = "${var.project_name}-backend-service"
-  frontend_service_name = "${var.project_name}-frontend-service"
-  alb_arn_suffix       = split("/", module.ecs.alb_dns_name)[1] # Extract ALB name from DNS
-  alert_email          = var.alert_email
+  project_name     = var.project_name
+  environment      = var.environment
+  aws_region       = var.aws_region
+  eks_cluster_name = module.eks.cluster_name
+  alert_email      = var.alert_email
 }

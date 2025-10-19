@@ -59,3 +59,9 @@ variable "alert_email" {
   type        = string
   default     = "your-email@example.com"  # Replace with your email
 }
+
+variable "cluster_version" {
+  description = "Kubernetes cluster version"
+  type        = string
+  default     = "1.28"
+}

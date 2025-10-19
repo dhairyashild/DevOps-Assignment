@@ -3,19 +3,14 @@ output "vpc_id" {
   value       = module.network.vpc_id
 }
 
-output "alb_dns_name" {
-  description = "ALB DNS name"
-  value       = module.ecs.alb_dns_name
+output "eks_cluster_name" {
+  description = "EKS cluster name"
+  value       = module.eks.cluster_name
 }
 
-output "backend_url" {
-  description = "Backend service URL"
-  value       = module.ecs.backend_url
-}
-
-output "frontend_url" {
-  description = "Frontend service URL"
-  value       = module.ecs.frontend_url
+output "eks_cluster_endpoint" {
+  description = "EKS cluster endpoint"
+  value       = module.eks.cluster_endpoint
 }
 
 output "backend_ecr_repository" {
@@ -26,11 +21,6 @@ output "backend_ecr_repository" {
 output "frontend_ecr_repository" {
   description = "Frontend ECR repository URL"
   value       = aws_ecr_repository.frontend.repository_url
-}
-
-output "ecs_cluster_name" {
-  description = "ECS cluster name"
-  value       = module.ecs.ecs_cluster_name
 }
 
 output "cloudwatch_dashboard_url" {

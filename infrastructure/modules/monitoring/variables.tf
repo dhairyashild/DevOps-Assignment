@@ -14,23 +14,8 @@ variable "aws_region" {
   default     = "us-east-1"
 }
 
-variable "ecs_cluster_name" {
-  description = "ECS cluster name"
-  type        = string
-}
-
-variable "backend_service_name" {
-  description = "Backend service name"
-  type        = string
-}
-
-variable "frontend_service_name" {
-  description = "Frontend service name"
-  type        = string
-}
-
-variable "alb_arn_suffix" {
-  description = "ALB ARN suffix"
+variable "eks_cluster_name" {
+  description = "EKS cluster name"
   type        = string
 }
 
