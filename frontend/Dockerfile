@@ -1,3 +1,4 @@
+
 # Build stage
 FROM node:18-alpine as builder
 WORKDIR /app
@@ -6,12 +7,14 @@ RUN npm ci
 COPY . .
 RUN npm run build
 
-# Production stage (non-root)  
-FROM nginx:alpine
-RUN addgroup -g 1001 -S nginxgroup && \
-    adduser -S nginxuser -u 1001 -G nginxgroup
-COPY --from=builder /app/dist /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-RUN chown -R nginxuser:nginxgroup /usr/share/nginx/html /etc/nginx
-USER nginxuser
-EXPOSE 80
+FROM node:20-alpine
+WORKDIR /app
+RUN addgroup -g 1001 nodejs && adduser -S nextjs -u 1001
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+COPY --from=builder /app/public ./public
+USER nextjs
+EXPOSE 3000
+ENV NODE_ENV=production
+CMD ["node", "server.js"]
+

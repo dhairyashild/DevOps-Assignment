@@ -1,16 +1,13 @@
-# Build stage
-FROM maven:3.9.6-eclipse-temurin-17 as builder
+FROM python:3.12-slim AS builder
 WORKDIR /app
-COPY . .
-RUN mvn clean package -DskipTests
+COPY requirements.txt .
+RUN pip install --user --no-cache-dir -r requirements.txt
 
-# Production stage (non-root)
-FROM eclipse-temurin:17-jre-alpine
+FROM python:3.12-slim
 WORKDIR /app
-RUN addgroup -g 1001 -S appgroup && \
-    adduser -S appuser -u 1001 -G appgroup
-COPY --from=builder /app/target/*.jar app.jar
-RUN chown -R appuser:appgroup /app
+COPY --from=builder /root/.local /root/.local
+COPY app/ ./app/
+RUN useradd -m appuser && chown -R appuser:appuser /app
 USER appuser
-EXPOSE 8080
-ENTRYPOINT ["java", "-jar", "app.jar"]
+EXPOSE 8000
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
