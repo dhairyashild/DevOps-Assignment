@@ -1,20 +1,15 @@
-
-# Build stage
-FROM node:18-alpine as builder
+FROM node:18-alpine AS builder
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 COPY . .
 RUN npm run build
 
-FROM node:20-alpine
+FROM node:18-alpine AS runner
 WORKDIR /app
-RUN addgroup -g 1001 nodejs && adduser -S nextjs -u 1001
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
-COPY --from=builder /app/public ./public
-USER nextjs
+ENV NODE_ENV production
+RUN apk add --no-cache tini
+ENTRYPOINT ["/sbin/tini", "--", "node", "server.js"]
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
 EXPOSE 3000
-ENV NODE_ENV=production
-CMD ["node", "server.js"]
-
