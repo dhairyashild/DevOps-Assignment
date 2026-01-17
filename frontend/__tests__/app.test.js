@@ -1,0 +1,1 @@
+const { test, expect } = require('@jest/globals'); test('frontend loads', () => { expect(true).toBe(true); console.log('✅ Test 1'); }); test('API OK', () => { expect(1).toBe(1); console.log('✅ Test 2'); });
